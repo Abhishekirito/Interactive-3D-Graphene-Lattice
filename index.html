@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfect Graphene Structure</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #ffffff; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            font-family: sans-serif;
+            color: #888;
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="info">Interactive Graphene Lattice</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Configuration ---
+        const CONFIG = {
+            gridCols: 25,       // Number of horizontal hexagons
+            gridRows: 25,       // Number of vertical rows
+            bondLength: 1.5,    // Distance between atoms
+            atomRadius: 0.15,   // Small black balls
+            waveSpeed: 1.2,     
+            waveHeight: 1.5,    
+            waveFreq: 0.25,     
+            bgColor: 0xffffff,  
+            atomColor: 0x000000, 
+            bondColor: 0x000000  
+        };
+
+        // --- Scene Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(CONFIG.bgColor);
+        scene.fog = new THREE.Fog(CONFIG.bgColor, 20, 90);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 40); // Front view to match 2D diagram initially
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(10, 20, 30);
+        scene.add(dirLight);
+
+        // --- Controls ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.5;
+
+        // --- Geometry Generation (The "Dumbbell" Method) ---
+        
+        const atoms = [];
+        const connections = [];
+
+        // Math Constants for Hexagons
+        // S = Bond Length.
+        // Horizontal spacing between dumbbell pairs = 3 * S
+        // Vertical spacing between rows = S * sin(60) = S * 0.866
+        const S = CONFIG.bondLength;
+        const H_SPACING = 3 * S;
+        const V_SPACING = S * Math.sqrt(3) / 2; // ~0.866 * S
+
+        // Helper to store atom index for linking
+        // Keys: "row,col,type" (type 0=Left Atom, 1=Right Atom)
+        const atomMap = new Map();
+
+        let atomIndex = 0;
+
+        for (let row = 0; row < CONFIG.gridRows; row++) {
+            for (let col = 0; col < CONFIG.gridCols; col++) {
+                
+                // Calculate Base Position
+                // Every odd row is shifted horizontally by 1.5 * S
+                const rowOffset = (row % 2) * (1.5 * S);
+                const xBase = (col * H_SPACING) + rowOffset;
+                const zBase = row * V_SPACING;
+
+                // Center the grid
+                const xFinal = xBase - (CONFIG.gridCols * H_SPACING) / 2;
+                const zFinal = zBase - (CONFIG.gridRows * V_SPACING) / 2;
+
+                // Create Pair of Atoms (Dumbbell)
+                // Atom A (Left)
+                const atomA = {
+                    id: atomIndex++,
+                    xBase: xFinal,
+                    zBase: zFinal,
+                    y: 0,
+                    row: row,
+                    col: col,
+                    type: 0 // Left
+                };
+                atoms.push(atomA);
+                atomMap.set(`${row},${col},0`, atomA.id);
+
+                // Atom B (Right) -> Placed 'S' units to the right
+                const atomB = {
+                    id: atomIndex++,
+                    xBase: xFinal + S,
+                    zBase: zFinal,
+                    y: 0,
+                    row: row,
+                    col: col,
+                    type: 1 // Right
+                };
+                atoms.push(atomB);
+                atomMap.set(`${row},${col},1`, atomB.id);
+
+                // --- CONNECTIONS ---
+                
+                // 1. Internal Bond (Horizontal)
+                connections.push([atomA.id, atomB.id]);
+
+                // 2. Inter-row Bonds (Connecting to the row "above")
+                // We only look "back" (row - 1) to avoid duplicates.
+                if (row > 0) {
+                    const prevRow = row - 1;
+                    
+                    // Logic depends on stagger (odd vs even rows)
+                    if (row % 2 === 0) { 
+                        // Current is EVEN. Previous was ODD (Shifted Right).
+                        // My Left (A) connects to Prev Col's Right (B)
+                        // My Right (B) connects to Prev Col's Left (A)? No.
+                        
+                        // Let's trace coordinates:
+                        // Even Row Start: 0. Odd Row Start: 1.5.
+                        // Even Row Atom A (0) is close to Odd Row (col-1) Atom B (Right side)
+                        
+                        // Connect A to neighbor's B (Top-Left direction)
+                        // Neighbor is at col, not col-1 in array logic, because of the shift match?
+                        // Let's rely on map lookups.
+                        
+                        // Top-Left connection:
+                        // Current A (0) connects to Prev Row, Col-1, Type B (1)
+                        if (atomMap.has(`${prevRow},${col},1`)) { // wait, col is aligned?
+                           // Actually, simpler:
+                           // Current A connects to Prev Row Col B?
+                           // Dist check is safest, but let's do logic:
+                           // Even row A is at X. Prev row (Odd) B is at X + 1.5 + 1.0 = X+2.5? No.
+                           // Prev row (Odd) B at col-1: (col-1)*3 + 1.5 + 1 = 3col - 3 + 2.5 = 3col - 0.5.
+                           // My A is at 3col. Dist X = 0.5. Dist Z = 0.866. Total = 1.0. YES.
+                           connections.push([atomA.id, atomMap.get(`${prevRow},${col-1},1`)]);
+                        }
+
+                        // Top-Right connection:
+                        // Current B (1) connects to Prev Row, Col, Type A (0)
+                        if (atomMap.has(`${prevRow},${col},0`)) {
+                             connections.push([atomB.id, atomMap.get(`${prevRow},${col},0`)]);
+                        }
+
+                    } else {
+                        // Current is ODD. Previous was EVEN (Shifted Left relative to me).
+                        // My Left (A) connects to Prev Row, Col, Type B (1)
+                        if (atomMap.has(`${prevRow},${col},1`)) {
+                            connections.push([atomA.id, atomMap.get(`${prevRow},${col},1`)]);
+                        }
+                        
+                        // My Right (B) connects to Prev Row, Col+1, Type A (0)
+                        if (atomMap.has(`${prevRow},${col+1},0`)) {
+                            connections.push([atomB.id, atomMap.get(`${prevRow},${col+1},0`)]);
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Meshes ---
+        
+        // 1. Atoms
+        const atomGeo = new THREE.SphereGeometry(CONFIG.atomRadius, 16, 16);
+        const atomMat = new THREE.MeshStandardMaterial({ 
+            color: CONFIG.atomColor, 
+            roughness: 0.2, 
+            metalness: 0.3 
+        });
+        const atomsMesh = new THREE.InstancedMesh(atomGeo, atomMat, atoms.length);
+        scene.add(atomsMesh);
+
+        // 2. Bonds
+        const lineGeo = new THREE.BufferGeometry();
+        const linePos = new Float32Array(connections.length * 2 * 3);
+        lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+        const lineMat = new THREE.LineBasicMaterial({ color: CONFIG.bondColor });
+        const linesMesh = new THREE.LineSegments(lineGeo, lineMat);
+        scene.add(linesMesh);
+
+        const dummy = new THREE.Object3D();
+
+        // --- Animation ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = clock.getElapsedTime();
+            const positions = linesMesh.geometry.attributes.position.array;
+
+            // Update Atoms
+            for (let i = 0; i < atoms.length; i++) {
+                const atom = atoms[i];
+
+                // Sine Wave Logic
+                const waveX = Math.sin(atom.xBase * CONFIG.waveFreq + time * CONFIG.waveSpeed);
+                const waveZ = Math.cos(atom.zBase * CONFIG.waveFreq + time * CONFIG.waveSpeed * 0.8);
+                atom.y = (waveX + waveZ) * CONFIG.waveHeight;
+
+                dummy.position.set(atom.xBase, atom.y, atom.zBase);
+                dummy.updateMatrix();
+                atomsMesh.setMatrixAt(i, dummy.matrix);
+            }
+            atomsMesh.instanceMatrix.needsUpdate = true;
+
+            // Update Bonds
+            let idx = 0;
+            for (let i = 0; i < connections.length; i++) {
+                const idA = connections[i][0];
+                const idB = connections[i][1];
+                const atomA = atoms[idA];
+                const atomB = atoms[idB];
+
+                if(!atomA || !atomB) continue; // Safety check
+
+                positions[idx++] = atomA.xBase;
+                positions[idx++] = atomA.y;
+                positions[idx++] = atomA.zBase;
+
+                positions[idx++] = atomB.xBase;
+                positions[idx++] = atomB.y;
+                positions[idx++] = atomB.zBase;
+            }
+            linesMesh.geometry.attributes.position.needsUpdate = true;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+</html>
