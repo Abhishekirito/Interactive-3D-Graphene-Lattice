@@ -80,22 +80,22 @@ Modify the `CONFIG` object at the top of your script:
 ```js
 const CONFIG = {
     // Grid Dimensions
-    gridCols: 25,
-    gridRows: 25,
+    gridCols: 25,   // Number of horizontal hexagons
+    gridRows: 25,   // Number of vertical rows
 
     // Geometry
-    bondLength: 1.5,
-    atomRadius: 0.15,
+    bondLength: 1.5,   // Distance between atoms
+    atomRadius: 0.15,  // Size of the spheres
 
     // Physics / Animation
-    waveSpeed: 1.2,
-    waveHeight: 1.5,
-    waveFreq: 0.25,
-
+    waveSpeed: 1.2,   // Speed of the floating motion
+    waveHeight: 1.5,  // Amplitude of the wave
+    waveFreq: 0.25,   // Frequency of the ripples
+    
     // Visuals
-    bgColor: 0xffffff,
-    atomColor: 0x000000,
-    bondColor: 0x000000
+    bgColor: 0xffffff,     // Background color
+    atomColor: 0x000000,   // Atom color
+    bondColor: 0x000000    // Bond color
 };
 ```
 
